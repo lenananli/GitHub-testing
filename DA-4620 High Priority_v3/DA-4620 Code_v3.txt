@@ -1,0 +1,40 @@
+
+
+--check if all listed accounts are exsiting in accounts table
+--104,438 listed accounts in total 
+select *
+from "PROD_T3_WH"."ANALYTICS_SANDBOX"."DA_4620_ACCOUNTID"
+where person_id not in (select id from accounts);
+
+
+--main query
+--104,438 results 
+select acc.person_id as person_id, 
+acc.email, 
+listagg(mr.release_id, ', ') within group (order by mr.release_id) as most_recent_approved_live_release_id, 
+listagg(mr.release_name, ', ') within group (order by mr.release_id) as most_recent_approved_live_release_name, 
+mr.most_recent_approved_live_release_date
+from "PROD_T3_WH"."ANALYTICS_SANDBOX"."DA_4620_ACCOUNTID" acc
+left join 
+        (select account_id as account_id, 
+                id as release_id, 
+                name as release_name, 
+         first_approved_at as most_recent_approved_live_release_date,
+         DENSE_RANK() OVER (
+		PARTITION BY account_id
+		ORDER BY first_approved_at DESC) rank  --have to use dense rank here since max(first_approved_at) only works on date and it does not work on time
+
+         from "PROD_T3_WH"."DISTRIBUTIONS"."RELEASES"
+         where first_approved_at is not null
+         and takedown_at is null
+         and is_active=1
+         order by account_id 
+        
+        ) mr on mr.account_id = acc.person_id and mr.rank=1
+       
+      
+group by 1,2,5
+order by 1,2,5;
+
+
+--the total pulled results (104,438) are equal to the total number of listed accounts (104,438)
